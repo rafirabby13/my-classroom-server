@@ -8,7 +8,14 @@ dotenv.config()
 
 
 app.use(express.json())
-app.use(cors())
+app.use(cors({
+    origin: [
+        'http://localhost:5173',     // Without slash
+        'http://localhost:5173/',    // With slash (both variants)
+        process.env.FRONTEND_URL?.replace(/\/$/, '')
+    ],
+    credentials: true
+}))
 const uri = process.env.DB_URL;
 
 
@@ -26,18 +33,20 @@ async function run() {
 
         const classCollection = client.db("myClassroom").collection("classes");
         const userCollection = client.db("myClassroom").collection("users");
+        const assignmentsCollection = client.db("myClassroom").collection("assignments");
 
         app.get('/all-classes', async (req, res) => {
             const email = req.query.email;
-            // console.log(email);
+            console.log(email);
 
             if (!email) {
                 return res.status(400).send("Email is required");
             }
 
             // Search in the students array
+            // const classes = await classCollection.find().toArray();
             const classes = await classCollection.find({
-                students: email  // MongoDB automatically searches in arrays
+                students: email
             }).toArray();
 
             // console.log(classes);
@@ -101,8 +110,41 @@ async function run() {
             res.send(updatedClass);
         });
 
+        app.post('/assignments', async (req, res) => {
+            const data = req.body;
+            console.log(data)
+            if (!data) {
+                return res.send("error")
+            }
 
+            const result = await assignmentsCollection.insertOne(data)
+            res.send(result)
 
+        });
+
+        app.get('/all-assignments', async (req, res) => {
+            const id = req.query.classId
+            console.log(id)
+            const assignments = await assignmentsCollection.find({classId: id}).toArray()
+            console.log(assignments)
+            res.send(assignments)
+        })
+       
+
+       
+        app.delete('/delete-assignments/:id', async (req, res) => {
+            const id = req.params.id;
+            console.log(id)
+            if (!id) {
+                return res.send("error")
+            }
+
+            const result = await assignmentsCollection.deleteOne({ _id: new ObjectId(id)})
+            res.send(result)
+
+        });
+
+       
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
