@@ -34,6 +34,8 @@ async function run() {
         const classCollection = client.db("myClassroom").collection("classes");
         const userCollection = client.db("myClassroom").collection("users");
         const assignmentsCollection = client.db("myClassroom").collection("assignments");
+        const feedbackCollection = client.db("myClassroom").collection("feedback");
+        const postCollection = client.db("myClassroom").collection("post");
 
         app.get('/all-classes', async (req, res) => {
             const email = req.query.email;
@@ -125,13 +127,13 @@ async function run() {
         app.get('/all-assignments', async (req, res) => {
             const id = req.query.classId
             console.log(id)
-            const assignments = await assignmentsCollection.find({classId: id}).toArray()
+            const assignments = await assignmentsCollection.find({ classId: id }).toArray()
             console.log(assignments)
             res.send(assignments)
         })
-       
 
-       
+
+
         app.delete('/delete-assignments/:id', async (req, res) => {
             const id = req.params.id;
             console.log(id)
@@ -139,12 +141,91 @@ async function run() {
                 return res.send("error")
             }
 
-            const result = await assignmentsCollection.deleteOne({ _id: new ObjectId(id)})
+            const result = await assignmentsCollection.deleteOne({ _id: new ObjectId(id) })
             res.send(result)
 
         });
 
-       
+
+        app.post("/submit-feedback", async (req, res) => {
+            try {
+                const data = req.body;
+
+                // Basic validation
+                if (!data.classId) {
+                    return res.status(400).send({ message: "Class ID is required" });
+                }
+                if (!data.feedbackType) {
+                    return res.status(400).send({ message: "Feedback type is required" });
+                }
+                if (!data.category) {
+                    return res.status(400).send({ message: "Category is required" });
+                }
+                if (!data.rating || data.rating < 1 || data.rating > 5) {
+                    return res.status(400).send({ message: "Rating must be between 1 and 5" });
+                }
+                if (!data.message || data.message.trim() === "") {
+                    return res.status(400).send({ message: "Message is required" });
+                }
+
+                // Build feedback object
+                const feedback = {
+                    time: new Date().getTime().toString(), // simple unique ID; you can use UUID
+                    ...data
+                }
+                console.log(feedback)
+
+
+                const updatedfedddback = await feedbackCollection.insertOne(feedback);
+                res.send(updatedfedddback);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        app.get('/submit-feedback/:classId', async (req, res) => {
+            const id = req.params.classId
+            console.log(id)
+            const assignments = await feedbackCollection.find({ classId: id }).toArray()
+            console.log(assignments)
+            res.send(assignments)
+        })
+
+
+        app.post("/posts", async (req, res) => {
+            try {
+                const data = req.body;
+
+
+
+                if (!data.message || data.message.trim() === "") {
+                    return res.status(400).send({ message: "Message is required" });
+                }
+
+                // Build feedback object
+                const post = {
+                    time: new Date(), // simple unique ID; you can use UUID
+                    ...data
+                }
+                // console.log(post)
+
+
+                const updatedfedddback = await postCollection.insertOne(post);
+                res.send(updatedfedddback);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+        app.get('/posts/:classId', async (req, res) => {
+            const id = req.params.classId
+            console.log(id)
+            const assignments = await postCollection.find({ classId: id }).toArray()
+            console.log(assignments)
+            res.send(assignments)
+        })
+
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
