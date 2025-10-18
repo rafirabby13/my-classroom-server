@@ -36,6 +36,7 @@ async function run() {
         const assignmentsCollection = client.db("myClassroom").collection("assignments");
         const feedbackCollection = client.db("myClassroom").collection("feedback");
         const postCollection = client.db("myClassroom").collection("post");
+        const commentsCollection = client.db("myClassroom").collection("comments");
 
         app.get('/all-classes', async (req, res) => {
             const email = req.query.email;
@@ -225,7 +226,306 @@ async function run() {
             console.log(assignments)
             res.send(assignments)
         })
+        app.put("/posts/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const updateData = req.body;
+                console.log(updateData)
 
+                // Validate ID
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).send({ message: "Invalid post ID" });
+                }
+
+                // Validate message if provided
+                if (updateData.message && updateData.message.trim() === "") {
+                    return res.status(400).send({ message: "Message cannot be empty" });
+                }
+
+                // Check if post exists
+                const existingPost = await postCollection.findOne({ _id: new ObjectId(id) });
+                if (!existingPost) {
+                    return res.status(404).send({ message: "Post not found" });
+                }
+
+                // Update post with new data and updated timestamp
+                const result = await postCollection.findOneAndUpdate(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            ...updateData,
+                            updatedAt: new Date()
+                        }
+                    },
+                    { returnDocument: "after" }
+                );
+
+                res.status(200).send({
+                    success: true,
+                    message: "Post updated successfully",
+                    data: result.value
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        // DELETE - DELETE
+        app.delete("/posts/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                // Validate ID
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).send({ message: "Invalid post ID" });
+                }
+
+                // Check if post exists before deleting
+                const existingPost = await postCollection.findOne({ _id: new ObjectId(id) });
+                if (!existingPost) {
+                    return res.status(404).send({ message: "Post not found" });
+                }
+
+                // Delete the post
+                const result = await postCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).send({ message: "Post not found" });
+                }
+
+                res.status(200).send({
+                    success: true,
+                    message: "Post deleted successfully",
+                    data: result
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+
+        // CREATE COMMENT
+        app.post("/posts/:postId/comments", async (req, res) => {
+            try {
+                const { postId } = req.params;
+                const { message } = req.body;
+
+                if (!message || message.trim() === "") {
+                    return res.status(400).send({ message: "Comment message is required" });
+                }
+
+                if (!ObjectId.isValid(postId)) {
+                    return res.status(400).send({ message: "Invalid post ID" });
+                }
+
+                const comment = {
+                    postId: new ObjectId(postId),
+                    message: message.trim(),
+                    time: new Date(),
+                    userName: "Demo User" // You can get this from auth/request
+                };
+
+                const result = await commentsCollection.insertOne(comment);
+                res.status(201).send({
+                    success: true,
+                    message: "Comment created successfully",
+                    data: result
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        // GET ALL COMMENTS FOR A POST
+        app.get("/posts/:postId/comments", async (req, res) => {
+            try {
+                const { postId } = req.params;
+
+                if (!ObjectId.isValid(postId)) {
+                    return res.status(400).send({ message: "Invalid post ID" });
+                }
+
+                const comments = await commentsCollection
+                    .find({ postId: new ObjectId(postId) })
+                    .sort({ time: -1 })
+                    .toArray();
+
+                res.status(200).send({
+                    success: true,
+                    message: "Comments retrieved successfully",
+                    data: comments
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        // UPDATE COMMENT
+        app.put("/comments/:commentId", async (req, res) => {
+            try {
+                const { commentId } = req.params;
+                const { message } = req.body;
+
+                if (!message || message.trim() === "") {
+                    return res.status(400).send({ message: "Comment cannot be empty" });
+                }
+
+                if (!ObjectId.isValid(commentId)) {
+                    return res.status(400).send({ message: "Invalid comment ID" });
+                }
+
+                const result = await commentsCollection.findOneAndUpdate(
+                    { _id: new ObjectId(commentId) },
+                    {
+                        $set: {
+                            message: message.trim(),
+                            updatedAt: new Date()
+                        }
+                    },
+                    { returnDocument: "after" }
+                );
+
+                if (!result.value) {
+                    return res.status(404).send({ message: "Comment not found" });
+                }
+
+                res.status(200).send({
+                    success: true,
+                    message: "Comment updated successfully",
+                    data: result.value
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        // DELETE COMMENT
+        app.delete("/comments/:commentId", async (req, res) => {
+            try {
+                const { commentId } = req.params;
+
+                if (!ObjectId.isValid(commentId)) {
+                    return res.status(400).send({ message: "Invalid comment ID" });
+                }
+
+                const result = await commentsCollection.deleteOne({ _id: new ObjectId(commentId) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).send({ message: "Comment not found" });
+                }
+
+                res.status(200).send({
+                    success: true,
+                    message: "Comment deleted successfully",
+                    data: result
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+
+
+        // DELETE CLASS
+        app.delete("/class/:classId", async (req, res) => {
+            try {
+                const { classId } = req.params;
+
+                // Validate ID
+                if (!ObjectId.isValid(classId)) {
+                    return res.status(400).send({ message: "Invalid class ID" });
+                }
+
+                // Check if class exists before deleting
+                const existingClass = await classCollection.findOne({ _id: new ObjectId(classId) });
+                if (!existingClass) {
+                    return res.status(404).send({ message: "Class not found" });
+                }
+
+                // Delete the class
+                const result = await classCollection.deleteOne({ _id: new ObjectId(classId) });
+
+                // Also delete all posts/comments associated with this class (optional but recommended)
+                await postCollection.deleteMany({ classId: new ObjectId(classId) });
+                await commentsCollection.deleteMany({ classId: new ObjectId(classId) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).send({ message: "Class not found" });
+                }
+
+                res.status(200).send({
+                    success: true,
+                    message: "Class deleted successfully",
+                    data: result
+                });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
+
+        app.delete("/delete-assignments/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+
+                // Validate ID format
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid assignment ID format"
+                    });
+                }
+
+                // Check if assignment exists
+                const assignment = await assignmentsCollection.findOne({
+                    _id: new ObjectId(id)
+                });
+
+                if (!assignment) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Assignment not found"
+                    });
+                }
+
+                // Delete associated submissions
+                await submissionsCollection.deleteMany({
+                    assignmentId: new ObjectId(id)
+                });
+
+                // Delete the assignment
+                const result = await assignmentsCollection.deleteOne({
+                    _id: new ObjectId(id)
+                });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Failed to delete assignment"
+                    });
+                }
+
+                res.status(200).json({
+                    success: true,
+                    message: "Assignment deleted successfully",
+                    data: result
+                });
+
+            } catch (error) {
+                console.error("Delete assignment error:", error);
+                res.status(500).json({
+                    success: false,
+                    message: "Server error",
+                    error: error instanceof Error ? error.message : "Unknown error"
+                });
+            }
+        });
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
